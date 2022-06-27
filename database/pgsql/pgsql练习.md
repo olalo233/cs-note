@@ -2,7 +2,7 @@
 
 这里主要给题和答案。  
 结果是跑出来了，但不保证最优。（最优是一个非常复杂的问题，我能力有限只能处理一点简单的问题。）  
-sql直接写md里了推荐使用IDEA阅读、练习。  
+sql直接写md里了推荐使用IDEA阅读、练习。
 
 ## 声明
 
@@ -15,18 +15,156 @@ sql直接写md里了推荐使用IDEA阅读、练习。
 答案可以参考上文链接。
 
 这里使用pgsql重写一下答案。  
+注意使用pgsql默认设置， 关键字、表名、字段名全部不区分大小写。
+这里有时候为了展示思考过程，直接使用 `with` 语法提取子查询。  
+正常写直接将子查询带入即可，没必要学我。
 
 ### DDL
 
-```postgresql
+建表语句
 
+```postgresql
+create database "sql50";
+-- 切换数据库
+\c "sql50";
+drop table if exists student;
+create table student
+(
+    id   VARCHAR(64)  not null primary key,
+    name VARCHAR(90)  not null,
+    age  TIMESTAMP    not null,
+    sex  VARCHAR(120) not null
+);
+-- pgsql不支持在行后直接写注释，我们拿出来写
+comment on table student is '学生表';
+-- 如果使用 "" 可以指定表名、字段大小写等
+comment on column "student"."id" is '学生主键';
+comment on column student.name is '学生姓名';
+comment on column student.age is '学生年龄';
+comment on column student.sex is '学生性别;男、女';
+
+drop table if exists teacher;
+create table teacher
+(
+    id   VARCHAR(64) not null,
+    name VARCHAR(90) not null,
+    -- 主键可以有两种写法，参照student, teacher
+    primary key (id)
+);
+comment on table teacher is '教师表';
+comment on column teacher.id is '教师主键';
+comment on column teacher.name is '教师姓名';
+
+drop table if exists course;
+create table course
+(
+    id   VARCHAR(64) not null,
+    name VARCHAR(90) not null,
+    t_id VARCHAR(64) not null,
+    primary key (id)
+);
+comment on table course is '科目表';
+comment on column course.id is '科目主键';
+comment on column course.name is '科目名';
+comment on column course.t_id is '授课教师主键';
+
+drop table if exists student_course_score;
+create table student_course_score
+(
+    s_id  VARCHAR(64) null,
+    c_id  VARCHAR(64) null,
+    score decimal(24, 2)
+);
+comment on table student_course_score is '成绩表';
+comment on column student_course_score.s_id is '学生主键';
+comment on column student_course_score.c_id is '科目主键';
+comment on column student_course_score.score is '成绩;聚合结果保留2位小数';
+```
+
+初始化数据
+
+```postgresql
+insert into student
+values ('01', '赵雷', '1990-01-01', '男'),
+       ('02', '钱电', '1990-12-21', '男'),
+       ('03', '孙风', '1990-12-20', '男'),
+       ('04', '李云', '1990-12-06', '男'),
+       ('05', '周梅', '1991-12-01', '女'),
+       ('06', '吴兰', '1992-01-01', '女'),
+       ('07', '郑竹', '1989-01-01', '女'),
+       ('09', '张三', '2017-12-20', '女'),
+       ('10', '李四', '2017-12-25', '女'),
+       ('11', '李四', '2012-06-06', '女'),
+       ('12', '赵六', '2013-06-13', '女'),
+       ('13', '孙七', '2014-06-01', '女');
+
+insert into teacher
+values ('01', '张三'),
+       ('02', '李四'),
+       ('03', '王五');
+
+insert into course
+values ('01', '语文', '02'),
+       ('02', '数学', '01'),
+       ('03', '英语', '03');
+
+insert into student_course_score
+values ('01', '01', 80),
+       ('01', '02', 90),
+       ('01', '03', 99),
+       ('02', '01', 70),
+       ('02', '02', 60),
+       ('02', '03', 80),
+       ('03', '01', 80),
+       ('03', '02', 80),
+       ('03', '03', 80),
+       ('04', '01', 50),
+       ('04', '02', 30),
+       ('04', '03', 20),
+       ('05', '01', 76),
+       ('05', '02', 87),
+       ('06', '01', 31),
+       ('06', '03', 34),
+       ('07', '02', 89),
+       ('07', '03', 98);
 ```
 
 ### 问题
 
 1. 查询" 01 "课程比" 02 "课程成绩高的学生的信息及课程分数
+   解：
+
+```postgresql
+-- 分解查询
+-- 获取学生01课程成绩
+with c_01 as (select scs.s_id,
+                     scs.score as score
+              from student_course_score scs
+              where c_id = '01')
+-- 获取学生01课程成绩
+   , c_02 as (select scs.s_id,
+                     scs.score as score
+              from student_course_score scs
+              where c_id = '02')
+select s.*,
+       c_01.score as "01课程成绩",
+       c_02.score as "02课程成绩"
+from c_01
+         left join c_02 on c_01.s_id = c_02.s_id
+         left join student s on c_01.s_id = s.id
+where c_01.score > c_02.score;
+```
+
+结果：
+
+| id  | name | age                        | sex | 01课程成绩 | 02课程成绩 |
+|:----|:-----|:---------------------------|:----|:-------|:-------|
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   | 70.00  | 60.00  |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   | 50.00  | 30.00  |
+
 
 1.1 查询同时存在" 01 "课程和" 02 "课程的情况
+
 
 1.2 查询存在" 01 "课程但可能不存在" 02 "课程的情况(不存在时显示为 null )
 
@@ -68,7 +206,7 @@ sql直接写md里了推荐使用IDEA阅读、练习。
 
 15.1 按各科成绩进行排序，并显示排名， Score 重复时合并名次
 
-16.  查询学生的总成绩，并进行排名，总分重复时保留名次空缺
+16. 查询学生的总成绩，并进行排名，总分重复时保留名次空缺
 
 16.1 查询学生的总成绩，并进行排名，总分重复时不保留名次空缺
 
