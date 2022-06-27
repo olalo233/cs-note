@@ -11,7 +11,7 @@ sql直接写md里了推荐使用IDEA阅读、练习。
 ## 练习1 - 网传经典sql50道
 
 主要来源是之前在网上流传的50道SQL练习题，大小问加起来50道左右。[感谢bladeXue](https://github.com/bladeXue/sql50)
-很久之前看到过，这次在github上看到忍不住使用pgsql重做一般。
+很久之前看到过，这次在github上看到忍不住使用pgsql重做一遍。
 答案可以参考上文链接。
 
 这里使用pgsql重写一下答案。  
