@@ -2,22 +2,19 @@
 
 这里主要给题和答案。  
 结果是跑出来了，但不保证最优。（最优是一个非常复杂的问题，我能力有限只能处理一点简单的问题。）  
-sql直接写md里了推荐使用IDEA阅读、练习。
-
-## 声明
-
-本练习中的
+sql直接写md里了推荐使用IDEA阅读、练习。（支持markdown渲染，从markdown运行Sql等）  
+网页端推荐直接简悦转码阅读。（github默认不提供markdown中的postgresql代码块高亮）
 
 ## 练习1 - 网传经典sql50道
 
-主要来源是之前在网上流传的50道SQL练习题，大小问加起来50道左右。[感谢bladeXue](https://github.com/bladeXue/sql50)
+声明：本节练习主要来源是之前在网上流传的50道SQL练习题，大小问加起来50道左右。[感谢bladeXue](https://github.com/bladeXue/sql50)  
 很久之前看到过，这次在github上看到忍不住使用pgsql重做一遍。
 答案可以参考上文链接。
 
-这里使用pgsql重写一下答案。  
-注意使用pgsql默认设置， 关键字、表名、字段名全部不区分大小写。
+这里使用pgsql作为方言给出解法。  
+注意使用pgsql默认设置， 关键字、表名、字段名全部不区分大小写。  
 这里有时候为了展示思考过程，直接使用 `with` 语法提取子查询。  
-正常写直接将子查询带入即可，没必要学我。
+正常写直接将子查询带入即可，没必要学我。  
 
 ### DDL
 
@@ -137,21 +134,23 @@ values ('01', '01', 80),
 ```postgresql
 -- 分解查询
 -- 获取学生01课程成绩
-with c_01 as (select scs.s_id,
-                     scs.score as score
-              from student_course_score scs
-              where c_id = '01')
+with c_01 as (
+    select scs.s_id,
+           scs.score as score
+    from student_course_score scs
+    where c_id = '01')
 -- 获取学生01课程成绩
-   , c_02 as (select scs.s_id,
-                     scs.score as score
-              from student_course_score scs
-              where c_id = '02')
+   , c_02 as (
+    select scs.s_id,
+           scs.score as score
+    from student_course_score scs
+    where c_id = '02')
 select s.*,
        c_01.score as "01课程成绩",
        c_02.score as "02课程成绩"
 from c_01
-         left join c_02 on c_01.s_id = c_02.s_id
-         left join student s on c_01.s_id = s.id
+left join c_02 on c_01.s_id = c_02.s_id
+left join student s on c_01.s_id = s.id
 where c_01.score > c_02.score;
 ```
 
@@ -162,25 +161,309 @@ where c_01.score > c_02.score;
 | 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   | 70.00  | 60.00  |
 | 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   | 50.00  | 30.00  |
 
-
 1.1 查询同时存在" 01 "课程和" 02 "课程的情况
+解：
+
+```postgresql
+with c_01 as (
+    select s_id, scs.score
+    from student_course_score scs
+    where scs.c_id = '01')
+   , c_02 as (
+        select s_id, scs.score
+        from student_course_score scs
+        where scs.c_id = '02')
+select s.*, c_01.score as "01课程成绩", c_02.score as "02课程成绩"
+from c_01
+inner join c_02 on c_01.s_id = c_02.s_id
+left join student s on c_01.s_id = s.id;
+```
+
+结果：
+
+| id  | name | age                        | sex | 01课程成绩 | 02课程成绩 |
+|:----|:-----|:---------------------------|:----|:-------|:-------|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   | 80.00  | 90.00  |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   | 70.00  | 60.00  |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   | 80.00  | 80.00  |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   | 50.00  | 30.00  |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   | 76.00  | 87.00  |
 
 
 1.2 查询存在" 01 "课程但可能不存在" 02 "课程的情况(不存在时显示为 null )
+解：
+
+```postgresql
+with c_01 as (
+    select scs.s_id, scs.score
+    from student_course_score scs 
+    where scs.c_id='01'
+), c_02 as (
+    select scs.s_id, scs.score
+    from student_course_score scs
+    where scs.c_id='02'
+)
+select s.*, c_01.score as "01课程成绩", c_02.score as "02课程成绩"
+from c_01 left join c_02 on c_01.s_id=c_02.s_id
+left join student s on c_01.s_id=s.id;
+```
+
+结果：
+
+| id  | name | age                        | sex | 01课程成绩 | 02课程成绩 |
+|:----|:-----|:---------------------------|:----|:-------|:-------|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   | 80.00  | 90.00  |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   | 70.00  | 60.00  |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   | 80.00  | 80.00  |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   | 50.00  | 30.00  |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   | 76.00  | 87.00  |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   | 31.00  | NULL   |
+
 
 1.3 查询不存在" 01 "课程但存在" 02 "课程的情况
 
+解：
+
+```postgresql
+select s.*, scs.score as "02课程成绩"
+from student_course_score scs
+left join student s on scs.s_id = s.id
+where scs.c_id = '02'
+  and scs.s_id not in (
+    select distinct scs.s_id
+    from student_course_score scs
+    where scs.c_id = '01');
+```
+
+结果：
+
+| id  | name | age                        | sex | 02课程成绩 |
+|:----|:-----|:---------------------------|:----|:-------|
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   | 89.00  |
+
+
+
 2. 查询平均成绩大于等于 60 分的同学的学生编号和学生姓名和平均成绩
+
+解：
+
+```postgresql
+with scs_group_by_sid as (
+    select scs.s_id, cast(avg(scs.score) as decimal(5, 2)) as avg_score
+    from student_course_score scs
+    group by scs.s_id
+    having avg(scs.score) >= 60
+    )
+select s.id as "学生编号", s.name as "学生姓名", scs_group_by_sid.avg_score as "平均成绩"
+from scs_group_by_sid inner join student s on scs_group_by_sid.s_id=s.id;
+```
+
+结果：
+
+| 学生编号 | 学生姓名 | 平均成绩  |
+|:-----|:-----|:------|
+| 01   | 赵雷   | 89.67 |
+| 02   | 钱电   | 70.00 |
+| 03   | 孙风   | 80.00 |
+| 05   | 周梅   | 81.50 |
+| 07   | 郑竹   | 93.50 |
+
 
 3. 查询在 SC 表存在成绩的学生信息
 
+解：
+
+```postgresql
+select s.*
+from student s
+where s.id in (
+    -- 查单列当数组用
+    select distinct scs.s_id
+    from student_course_score scs
+    where scs.score notnull
+)
+order by s.id;
+```
+
+结果：
+
+| id  | name | age                        | sex |
+|:----|:-----|:---------------------------|:----|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   |
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   |
+
+
+
 4. 查询所有同学的学生编号、学生姓名、选课总数、所有课程的总成绩(没成绩的显示为 null )
+
+解：
+
+```postgresql
+select s.id as "学生编号",
+       s.name as "学生姓名",
+       coalesce(scs.count_course, 0) as "选课总数", 
+       scs.sum_score as "总成绩"
+from (
+    select scs.s_id, 
+           count(*) as count_course, 
+           sum(scs.score) as sum_score
+    from student_course_score scs
+    group by scs.s_id
+) scs
+full join student s on scs.s_id=s.id
+order by s.id;
+```
+
+结果：
+
+| 学生编号 | 学生姓名 | 选课总数 | 总成绩  |
+|:-----|:-----|:-----|:-----|
+| 01   | 赵雷   | 3    | 269  |
+| 02   | 钱电   | 3    | 210  |
+| 03   | 孙风   | 3    | 240  |
+| 04   | 李云   | 3    | 100  |
+| 05   | 周梅   | 2    | 163  |
+| 06   | 吴兰   | 2    | 65   |
+| 07   | 郑竹   | 2    | 187  |
+| 09   | 张三   | 0    | NULL |
+| 10   | 李四   | 0    | NULL |
+| 11   | 李四   | 0    | NULL |
+| 12   | 赵六   | 0    | NULL |
+| 13   | 孙七   | 0    | NULL |
+
 
 4.1 查有成绩的学生信息
 
+解：
+
+```postgresql
+select s.*
+from student s
+where s.id in (
+    select distinct s_id
+    from student_course_score scs
+    where scs.score notnull)
+order by s.id; 
+```
+
+结果：
+
+| id  | name | age                        | sex |
+|:----|:-----|:---------------------------|:----|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   |
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   |
+
+
 5. 查询「李」姓老师的数量
 
+解：
+
+```postgresql
+select count(*) as "李姓老师数量"
+from teacher t
+where t.name like '李%';
+```
+
+结果：
+
+| 李姓老师数量 |
+|:-------|
+| 1      |
+
+
 6. 查询学过「张三」老师授课的同学的信息
+
+解：
+
+```postgresql
+-- 注意，这里并没有说只有一个张三老师
+-- 1. 嵌套范围查
+explain analyse
+select s.*
+from student_course_score scs
+inner join student s on scs.s_id = s.id
+where scs.c_id in (
+    select c.id
+    from course c
+    where c.t_id in (
+        select t.id
+        from teacher t
+        where t.name = '张三'));
+
+-- 2. 全部表连接
+select s.*
+from teacher t inner join course c on t.id = c.t_id
+inner join student_course_score scs on c.id=scs.c_id
+inner join student s on scs.s_id=s.id
+where t.name='张三';
+```
+
+嵌套范围查执行计划：
+
+```queryplan
+Nested Loop  (cost=24.70..37.84 rows=1 width=610) (actual time=0.042..0.049 rows=6 loops=1)
+  ->  Hash Semi Join  (cost=24.55..37.47 rows=1 width=146) (actual time=0.028..0.030 rows=6 loops=1)
+        Hash Cond: ((scs.c_id)::text = (c.id)::text)
+        ->  Seq Scan on student_course_score scs  (cost=0.00..12.30 rows=230 width=292) (actual time=0.009..0.010 rows=18 loops=1)
+        ->  Hash  (cost=24.54..24.54 rows=1 width=146) (actual time=0.015..0.015 rows=1 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+              ->  Hash Join  (cost=12.64..24.54 rows=1 width=146) (actual time=0.014..0.014 rows=1 loops=1)
+                    Hash Cond: ((c.t_id)::text = (t.id)::text)
+                    ->  Seq Scan on course c  (cost=0.00..11.50 rows=150 width=292) (actual time=0.002..0.002 rows=3 loops=1)
+                    ->  Hash  (cost=12.62..12.62 rows=1 width=146) (actual time=0.008..0.008 rows=1 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          ->  Seq Scan on teacher t  (cost=0.00..12.62 rows=1 width=146) (actual time=0.005..0.006 rows=1 loops=1)
+                                Filter: ((name)::text = '张三'::text)
+                                Rows Removed by Filter: 2
+  ->  Index Scan using student_pkey on student s  (cost=0.14..0.37 rows=1 width=610) (actual time=0.003..0.003 rows=1 loops=6)
+        Index Cond: ((id)::text = (scs.s_id)::text)
+Planning Time: 0.157 ms
+Execution Time: 0.075 ms
+```
+
+全部表连接执行计划：
+
+```queryplan
+Nested Loop  (cost=24.70..38.10 rows=1 width=610) (actual time=0.056..0.064 rows=6 loops=1)
+  ->  Hash Join  (cost=24.55..37.73 rows=1 width=146) (actual time=0.038..0.041 rows=6 loops=1)
+        Hash Cond: ((scs.c_id)::text = (c.id)::text)
+        ->  Seq Scan on student_course_score scs  (cost=0.00..12.30 rows=230 width=292) (actual time=0.012..0.013 rows=18 loops=1)
+        ->  Hash  (cost=24.54..24.54 rows=1 width=146) (actual time=0.020..0.020 rows=1 loops=1)
+              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+              ->  Hash Join  (cost=12.64..24.54 rows=1 width=146) (actual time=0.019..0.019 rows=1 loops=1)
+                    Hash Cond: ((c.t_id)::text = (t.id)::text)
+                    ->  Seq Scan on course c  (cost=0.00..11.50 rows=150 width=292) (actual time=0.003..0.003 rows=3 loops=1)
+                    ->  Hash  (cost=12.62..12.62 rows=1 width=146) (actual time=0.011..0.011 rows=1 loops=1)
+                          Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                          ->  Seq Scan on teacher t  (cost=0.00..12.62 rows=1 width=146) (actual time=0.007..0.008 rows=1 loops=1)
+                                Filter: ((name)::text = '张三'::text)
+                                Rows Removed by Filter: 2
+  ->  Index Scan using student_pkey on student s  (cost=0.14..0.37 rows=1 width=610) (actual time=0.003..0.003 rows=1 loops=6)
+        Index Cond: ((id)::text = (scs.s_id)::text)
+Planning Time: 0.204 ms
+Execution Time: 0.098 ms
+```
+
+结果：
+
+| id  | name | age                        | sex |
+|:----|:-----|:---------------------------|:----|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000 | 男   |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   |
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   |
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   |
 
 7. 查询没有学全所有课程的同学的信息
 
