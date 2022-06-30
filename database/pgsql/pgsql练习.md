@@ -446,6 +446,75 @@ Execution Time: 0.098 ms
 
 结果：
 
+| id  | name | age                         | sex |
+|:----|:-----|:----------------------------|:----|
+| 01  | 赵雷   | 1990-01-01 00:00:00.000000  | 男   |
+| 02  | 钱电   | 1990-12-21 00:00:00.000000  | 男   |
+| 03  | 孙风   | 1990-12-20 00:00:00.000000  | 男   |
+| 04  | 李云   | 1990-12-06 00:00:00.000000  | 男   |
+| 05  | 周梅   | 1991-12-01 00:00:00.000000  | 女   |
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000  | 女   |
+
+7. 查询没有学全所有课程的同学的信息
+
+解：
+
+```postgresql
+-- 注意，这里有个陷阱，不能直接查 student_course_score 表然后join，因为会漏掉一门课都没上的同学
+select s.*
+from student s
+where s.id not in (
+    select scs.s_id
+    from student_course_score scs
+    group by scs.s_id
+    having count(distinct scs.c_id) = (
+        select count(*)
+        from course));
+```
+
+结果：
+
+| id  | name | age                        | sex |
+|:----|:-----|:---------------------------|:----|
+| 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   |
+| 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   |
+| 09  | 张三   | 2017-12-20 00:00:00.000000 | 女   |
+| 10  | 李四   | 2017-12-25 00:00:00.000000 | 女   |
+| 11  | 李四   | 2012-06-06 00:00:00.000000 | 女   |
+| 12  | 赵六   | 2013-06-13 00:00:00.000000 | 女   |
+| 13  | 孙七   | 2014-06-01 00:00:00.000000 | 女   |
+
+8. 查询至少有一门课与学号为" 01 "的同学所学相同的同学的信息
+
+解：
+
+```postgresql
+-- 可以查 01 同学的课，然后 in 。 也可以直接自链接
+select s.*
+from student s
+where s.id in (
+    select scs.s_id
+    from student_course_score scs left join student_course_score scs2 on scs.c_id = scs2.c_id
+    where scs2.s_id = '01')
+order by s.id;
+
+select s.*
+from student s 
+where s.id in (
+    select scs.s_id
+    from student_course_score scs 
+    where scs.c_id in (
+        select scs2.c_id
+        from student_course_score scs2
+        where scs2.s_id='01'
+        )
+    )
+order by s.id;
+```
+
+结果：
+
 | id  | name | age                        | sex |
 |:----|:-----|:---------------------------|:----|
 | 01  | 赵雷   | 1990-01-01 00:00:00.000000 | 男   |
@@ -453,21 +522,119 @@ Execution Time: 0.098 ms
 | 03  | 孙风   | 1990-12-20 00:00:00.000000 | 男   |
 | 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   |
 | 05  | 周梅   | 1991-12-01 00:00:00.000000 | 女   |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   |
 | 07  | 郑竹   | 1989-01-01 00:00:00.000000 | 女   |
 
-7. 查询没有学全所有课程的同学的信息
 
-8. 查询至少有一门课与学号为" 01 "的同学所学相同的同学的信息
 
 9. 查询和" 01 "号的同学学习的课程完全相同的其他同学的信息
 
+解：
+
+```postgresql
+
+```
+
 10. 查询没学过"张三"老师讲授的任一门课程的学生姓名
+
+解:
+
+```postgresql
+-- 还是把学号查出来,防重名
+select s.id, s.name
+from student s
+where s.id not in (
+    select scs.s_id
+    from student_course_score scs
+    where scs.c_id in (
+        select c.id
+        from course c inner join teacher t on c.t_id = t.id
+        where t.name = '张三'));
+```
+
+结果:
+
+| id  | name |
+|:----|:-----|
+| 06  | 吴兰   |
+| 09  | 张三   |
+| 10  | 李四   |
+| 11  | 李四   |
+| 12  | 赵六   |
+| 13  | 孙七   |
+
 
 11. 查询两门及其以上不及格课程的同学的学号，姓名及其平均成绩
 
+解:
+
+```postgresql
+select s.id, s.name, t.avg_score
+from student s inner join (
+    select scs.s_id, round(avg(scs.score), 2) as avg_score
+    from student_course_score scs
+    group by scs.s_id
+    having sum(case when scs.score < 60 then 1 else 0 end ) >= 2    
+) as t on s.id=t.s_id;
+```
+
+结果:
+
+| id  | name | avg_score |
+|:----|:-----|:----------|
+| 04  | 李云   | 33.33     |
+| 06  | 吴兰   | 32.5      |
+
 12. 检索" 01 "课程分数小于 60，按分数降序排列的学生信息
 
+解:
+
+```postgresql
+select s.*, scs.score
+from student_course_score scs inner join student s on scs.s_id=s.id
+where scs.c_id = '01' and scs.score < 60
+order by scs.score desc ; 
+```
+
+结果:
+
+| id  | name | age                        | sex | score |
+|:----|:-----|:---------------------------|:----|:------|
+| 04  | 李云   | 1990-12-06 00:00:00.000000 | 男   | 50.00 |
+| 06  | 吴兰   | 1992-01-01 00:00:00.000000 | 女   | 31.00 |
+
+
 13. 按平均成绩从高到低显示所有学生的所有课程的成绩以及平均成绩
+
+解:
+
+```postgresql
+-- 这里可以作为透视表进行处理
+-- 当然,我们可以直接返回json来进行处理
+-- 我个人更倾向json, 理由如下
+-- 1. 对于上层应用,json是更好的媒介
+-- 2. 对于很多场景,其实并不那么容易就可以确定出列的情况
+-- 3. 如果使用动态sql生成列的描述, 工作量其实是比使用json更大的
+select scs.s_id,
+       round(avg(scs.score), 2) as avg_score,
+       json_object_agg(scs.c_id, scs.score) as each_score
+from student_course_score scs
+group by scs.s_id
+order by avg(scs.score);
+```
+
+结果:
+
+| s_id | avg_score | each_score                                   |
+|:-----|:----------|:---------------------------------------------|
+| 06   | 32.5      | { "01" : 31.00, "03" : 34.00 }               |
+| 04   | 33.33     | { "01" : 50.00, "02" : 30.00, "03" : 20.00 } |
+| 02   | 70        | { "01" : 70.00, "02" : 60.00, "03" : 80.00 } |
+| 03   | 80        | { "01" : 80.00, "02" : 80.00, "03" : 80.00 } |
+| 05   | 81.5      | { "01" : 76.00, "02" : 87.00 }               |
+| 01   | 89.67     | { "01" : 80.00, "02" : 90.00, "03" : 99.00 } |
+| 07   | 93.5      | { "02" : 89.00, "03" : 98.00 }               |
+
 
 14. 查询各科成绩最高分、最低分和平均分：
 
@@ -475,9 +642,116 @@ Execution Time: 0.098 ms
     及格为>=60，中等为：70-80，优良为：80-90，优秀为：>=90
     要求输出课程号和选修人数，查询结果按人数降序排列，若人数相同，按课程号升序排列
 
+```postgresql
+-- 思路: 先做核心数据,然后进行装饰.
+-- 范围定义为: [100, 90], (90, 80], (80, 70], [100, 60]
+-- 先做百分比函数
+
+create or replace function fn_to_percent(divisor numeric, dividend numeric, pos integer)
+    returns varchar
+    language plpgsql
+as
+$$
+begin
+    if divisor is null or divisor = 0 then
+        return 0;
+    elseif dividend is null or divisor = 0 then
+        return null;
+    end if;
+    return round(divisor / dividend * 100, pos);
+end;
+$$;
+
+
+select scs.c_id                                                                                   as "课程编号",
+       c.name                                                                                     as "课程",
+       max(scs.score)                                                                             as "最高分",
+       min(scs.score)                                                                             as "最低分",
+       round(avg(scs.score), 2)                                                                   as "平均分",
+       fn_to_percent(count(*) filter ( where scs.score >= 60 ), count(*), 2)                      as "合格(%)",
+       fn_to_percent(count(*) filter ( where scs.score >= 70 and scs.score < 80 ), count(*), 2)   as "中等(%)",
+       fn_to_percent(count(*) filter ( where scs.score >= 80 and scs.score < 90 ), count(*), 2)   as "优良(%)",
+       fn_to_percent(count(*) filter ( where scs.score >= 90 and scs.score <= 100 ), count(*), 2) as "优秀(%)"
+from student_course_score scs inner join course c on scs.c_id = c.id
+group by scs.c_id, c.name
+order by scs.c_id;
+```
+
+结果:
+
+| 课程编号 | 课程  | 最高分 | 最低分 | 平均分   | 合格\(%\) | 中等\(%\) | 优良\(%\) | 优秀\(%\) |
+|:-----|:----|:----|:----|:------|:--------|:--------|:--------|:--------|
+| 01   | 语文  | 80  | 31  | 64.5  | 66.67   | 33.33   | 33.33   | 0       |
+| 02   | 数学  | 90  | 30  | 72.67 | 83.33   | 0       | 50.00   | 16.67   |
+| 03   | 英语  | 99  | 20  | 68.5  | 66.67   | 0       | 33.33   | 33.33   |
+
+
 15. 按各科成绩进行排序，并显示排名， Score 重复时保留名次空缺
 
+解:
+
+```postgresql
+-- 窗口函数方法
+select scs.c_id,
+       scs.s_id,
+       scs.score,
+       rank() over (partition by scs.c_id order by scs.score desc nulls last )
+from student_course_score scs;
+```
+
+结果:
+
+| c\_id | s\_id | score | rank |
+|:------|:------|:------|:-----|
+| 01    | 03    | 80.00 | 1    |
+| 01    | 01    | 80.00 | 1    |
+| 01    | 05    | 76.00 | 3    |
+| 01    | 02    | 70.00 | 4    |
+| 01    | 04    | 50.00 | 5    |
+| 01    | 06    | 31.00 | 6    |
+| 02    | 01    | 90.00 | 1    |
+| 02    | 07    | 89.00 | 2    |
+| 02    | 05    | 87.00 | 3    |
+| 02    | 03    | 80.00 | 4    |
+| 02    | 02    | 60.00 | 5    |
+| 02    | 04    | 30.00 | 6    |
+| 03    | 01    | 99.00 | 1    |
+| 03    | 07    | 98.00 | 2    |
+| 03    | 02    | 80.00 | 3    |
+| 03    | 03    | 80.00 | 3    |
+| 03    | 06    | 34.00 | 5    |
+| 03    | 04    | 20.00 | 6    |
+
+
+
 15.1 按各科成绩进行排序，并显示排名， Score 重复时合并名次
+
+```postgresql
+-- 窗口函数方法
+select scs.c_id, scs.s_id, scs.score, dense_rank() over (partition by scs.c_id order by scs.score desc nulls last )
+from student_course_score scs;
+```
+
+| c\_id | s\_id | score | dense\_rank |
+| :--- | :--- | :--- | :--- |
+| 01 | 03 | 80.00 | 1 |
+| 01 | 01 | 80.00 | 1 |
+| 01 | 05 | 76.00 | 2 |
+| 01 | 02 | 70.00 | 3 |
+| 01 | 04 | 50.00 | 4 |
+| 01 | 06 | 31.00 | 5 |
+| 02 | 01 | 90.00 | 1 |
+| 02 | 07 | 89.00 | 2 |
+| 02 | 05 | 87.00 | 3 |
+| 02 | 03 | 80.00 | 4 |
+| 02 | 02 | 60.00 | 5 |
+| 02 | 04 | 30.00 | 6 |
+| 03 | 01 | 99.00 | 1 |
+| 03 | 07 | 98.00 | 2 |
+| 03 | 02 | 80.00 | 3 |
+| 03 | 03 | 80.00 | 3 |
+| 03 | 06 | 34.00 | 4 |
+| 03 | 04 | 20.00 | 5 |
 
 16. 查询学生的总成绩，并进行排名，总分重复时保留名次空缺
 
